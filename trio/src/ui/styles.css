@@ -230,11 +230,3 @@ button.ghost {
 .panel .big-score { font-size: 52px; font-weight: 900; color: var(--accent); }
 .panel .label { color: var(--muted); font-size: 15px; }
 .panel .record { color: var(--good); font-weight: 800; }
-
-/* невалидный свап: плитки дёргаются */
-.tile.nudge { animation: nudge 0.3s ease; }
-@keyframes nudge {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-4px); }
-  75% { transform: translateX(4px); }
-}

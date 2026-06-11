@@ -217,7 +217,10 @@ function attemptSwap(swap: Swap): void {
 
   if (!outcome.waves) {
     haptic('error');
-    nudgeTiles(swap);
+    animating = true;
+    void animateSwapBack(swap).then(() => {
+      animating = false;
+    });
     return;
   }
 
@@ -231,17 +234,28 @@ function attemptSwap(swap: Swap): void {
   });
 }
 
-/** Невалидный свап: обе плитки дёргаются. */
-function nudgeTiles(swap: Swap): void {
-  for (const p of [swap.a, swap.b]) {
-    const el = tileEl(p.r, p.c);
-    if (!el) continue;
-    el.classList.add('nudge');
-    window.setTimeout(() => el.classList.remove('nudge'), 350);
-  }
-}
-
 const sleep = (ms: number) => new Promise<void>((r) => window.setTimeout(r, ms));
+
+/** Невалидный свап: плитки съезжаются и возвращаются на место. */
+async function animateSwapBack(swap: Swap): Promise<void> {
+  const ea = tileEl(swap.a.r, swap.a.c);
+  const eb = tileEl(swap.b.r, swap.b.c);
+  if (!ea || !eb) return;
+  const ra = ea.getBoundingClientRect();
+  const rb = eb.getBoundingClientRect();
+  ea.style.transition = `transform ${SWAP_MS}ms ease`;
+  eb.style.transition = `transform ${SWAP_MS}ms ease`;
+  ea.style.zIndex = '2';
+  ea.style.transform = `translate(${rb.left - ra.left}px, ${rb.top - ra.top}px)`;
+  eb.style.transform = `translate(${ra.left - rb.left}px, ${ra.top - rb.top}px)`;
+  await sleep(SWAP_MS + 20);
+  ea.style.transform = '';
+  eb.style.transform = '';
+  await sleep(SWAP_MS + 20);
+  ea.style.transition = '';
+  eb.style.transition = '';
+  ea.style.zIndex = '';
+}
 
 /** Анимация хода: свап навстречу -> волны (лопанье + падение) -> перемешка, если была. */
 async function animateMove(swap: Swap, outcome: SwapOutcome): Promise<void> {
