@@ -64,39 +64,14 @@ function renderGame(): void {
         </div>
       </div>
       <div class="timerbar"><div id="timer-fill" style="width:100%"></div></div>
-      <div class="board" id="board" style="grid-template-columns: repeat(${round.board[0]!.length}, 1fr)"></div>
+      <div class="board-wrap"><div class="board" id="board" style="--cols:${round.board[0]!.length};--rows:${round.board.length};grid-template-columns: repeat(${round.board[0]!.length}, 1fr)"></div></div>
       <div class="drag-tip" id="drag-tip" hidden></div>
     </div>`;
 
   renderBoard();
-  fitBoard();
-  // вьюпорт Telegram доезжает после старта (expand-анимация) — перемеряем кадром позже
-  requestAnimationFrame(fitBoard);
   bindBoardPointer();
   updateFire();
 }
-
-/** Ограничить ширину доски так, чтобы все ряды влезали по высоте (плитки квадратные).
- *  min(..., 100%) страхует от устаревшего замера: шире контейнера не станем никогда. */
-function fitBoard(): void {
-  if (!round) return;
-  const boardEl = document.getElementById('board');
-  if (!boardEl) return;
-  const r = round.board.length;
-  const c = round.board[0]!.length;
-  const gap = parseFloat(getComputedStyle(boardEl).gap) || 4;
-  boardEl.style.maxWidth = '';
-  const tile = Math.min(
-    (boardEl.clientWidth - gap * (c - 1)) / c,
-    (boardEl.clientHeight - gap * (r - 1)) / r,
-  );
-  boardEl.style.maxWidth = `min(${Math.floor(tile * c + gap * (c - 1))}px, 100%)`;
-  boardEl.style.margin = '0 auto';
-  boardEl.style.width = '100%';
-}
-
-window.addEventListener('resize', fitBoard);
-tg?.onEvent?.('viewportChanged', fitBoard);
 
 function renderBoard(board = round?.board): void {
   if (!board) return;

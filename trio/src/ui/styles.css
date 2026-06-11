@@ -124,14 +124,26 @@ body {
 .timerbar div { height: 100%; background: var(--good); border-radius: 3px; transition: width 0.2s linear; }
 .timerbar div.low { background: var(--bad); }
 
-.board {
+/* Размер доски считает чистый CSS от реального размера контейнера (container queries):
+   JS-замеры вьюпорта Telegram ненадёжны — десктоп-клиент отдаёт геометрию с опозданием. */
+.board-wrap {
   flex: 1;
   min-height: 0;
+  container-type: size;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.board {
+  --gap: 4px;
+  /* квадратные плитки: ширина доски упирается либо в ширину, либо в высоту контейнера */
+  width: min(
+    100%,
+    calc((100cqh - (var(--rows) - 1) * var(--gap)) / var(--rows) * var(--cols) + (var(--cols) - 1) * var(--gap))
+  );
   display: grid;
-  gap: 4px;
+  gap: var(--gap);
   touch-action: none;
-  align-content: center;
-  overflow: hidden;
 }
 .tile {
   border-radius: 9px;
