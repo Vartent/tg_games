@@ -69,11 +69,14 @@ function renderGame(): void {
 
   renderBoard();
   fitBoard();
+  // вьюпорт Telegram доезжает после старта (expand-анимация) — перемеряем кадром позже
+  requestAnimationFrame(fitBoard);
   bindBoardPointer();
   updateFire();
 }
 
-/** Ограничить ширину доски так, чтобы все ряды влезали по высоте (плитки квадратные). */
+/** Ограничить ширину доски так, чтобы все ряды влезали по высоте (плитки квадратные).
+ *  min(..., 100%) страхует от устаревшего замера: шире контейнера не станем никогда. */
 function fitBoard(): void {
   if (!round) return;
   const boardEl = document.getElementById('board');
@@ -86,12 +89,13 @@ function fitBoard(): void {
     (boardEl.clientWidth - gap * (c - 1)) / c,
     (boardEl.clientHeight - gap * (r - 1)) / r,
   );
-  boardEl.style.maxWidth = `${Math.floor(tile * c + gap * (c - 1))}px`;
+  boardEl.style.maxWidth = `min(${Math.floor(tile * c + gap * (c - 1))}px, 100%)`;
   boardEl.style.margin = '0 auto';
   boardEl.style.width = '100%';
 }
 
 window.addEventListener('resize', fitBoard);
+tg?.onEvent?.('viewportChanged', fitBoard);
 
 function renderBoard(): void {
   if (!round) return;

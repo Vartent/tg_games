@@ -8,8 +8,8 @@ import * as C from '../src/constants';
 
 function makeRound(rows: string[], overrides: Partial<Round> = {}): Round {
   return {
-    level: 9, // плато: номиналы до 9, зеро-лимит 1
-    goal: levelGoal(9),
+    level: 1,
+    goal: levelGoal(1),
     seed: 1,
     board: board(rows),
     score: 0,
@@ -26,59 +26,73 @@ const swapRight = (r: number, c: number): Swap => ({ a: { r, c }, b: { r, c: c +
 const swapDown = (r: number, c: number): Swap => ({ a: { r, c }, b: { r: r + 1, c } });
 
 describe('валидный свап', () => {
-  it('лопает отрезок и начисляет зачёты', () => {
-    // [[4,5],[5,6]] свап верхней пары -> col0: 5+5=10
-    const out = playSwap(makeRound(['45', '56']), swapRight(0, 0), 1000, fixedRng(0.5));
+  // [[1,9],[4,8],[9,5]]: свап 9<->5 в нижнем ряду собирает col0 = 1+4+5
+  const clean = ['19', '48', '95'];
+
+  it('лопает тройку и начисляет зачёт', () => {
+    const out = playSwap(makeRound(clean), { a: { r: 2, c: 0 }, b: { r: 2, c: 1 } }, 1000, fixedRng(0.9));
     expect(out.waves).not.toBeNull();
-    expect(out.k).toBeGreaterThanOrEqual(1);
-    expect(out.earned).toBe(out.k * out.multiplier);
-    expect(out.round.score).toBe(out.earned);
+    expect(out.k).toBe(1);
+    expect(out.multiplier).toBe(1);
+    expect(out.earned).toBe(1);
+    expect(out.round.score).toBe(1);
+    expect(out.round.endsAt).toBe(60_000); // одиночная тройка время не добавляет
+    expect(isFireActive(out.round, 1001)).toBe(false);
   });
 
-  it('2+ отрезков за ход зажигают огонёк и дают +10с', () => {
-    // колонка [0,5,3,5]: свап 3<->5 -> [0,5,5,3]: отрезки [0,5,5] и [5,5], зеро внутри
-    const out = playSwap(makeRound(['0', '5', '3', '5']), swapDown(2, 0), 1000, fixedRng(0.5));
+  it('каскад на 2 тройки: огонёк и +10с', () => {
+    // колонка [2,4,3,5,1,5]: свап 4<->3 -> [2,3,4,5,1,5]: лопается 4+5+1 (ряды 2-4),
+    // 2 и 3 падают на нижнюю 5 -> 2+3+5 — вторая волна
+    const out = playSwap(makeRound(['2', '4', '3', '5', '1', '5']), swapDown(1, 0), 1000, fixedRng(0.9));
     expect(out.k).toBe(2);
-    expect(out.zero).toBe(true);
-    expect(out.multiplier).toBe(C.FIRE_MULT); // зеро даёт ×2 этому же ходу
-    expect(out.earned).toBe(4);
-    expect(out.round.fireUntil).toBe(1000 + C.FIRE_DURATION_MS);
+    expect(out.earned).toBe(2);
     expect(out.round.endsAt).toBe(60_000 + C.MULTI_TIME_BONUS_MS);
+    expect(out.round.fireUntil).toBe(1000 + C.FIRE_DURATION_MS);
     expect(isFireActive(out.round, 5000)).toBe(true);
   });
 
-  it('после хода без оставшихся свапов поле перемешивается', () => {
-    // после каскада останется [4,4,4,3] без ходов -> reshuffled
-    const out = playSwap(makeRound(['0', '5', '3', '5']), swapDown(2, 0), 1000, fixedRng(0.5));
-    expect(out.reshuffled).toBe(true);
-    expect(out.round.board.length).toBeGreaterThan(4); // доска уровня 9, не колонка
+  it('тройка с зеро: ×2 этому же ходу и огонёк', () => {
+    // [[0,2],[1,8],[7,9]]: свап 7<->9 -> col0 = 0+1+9 = 10, с зеро
+    const out = playSwap(makeRound(['02', '18', '79']), swapRight(2, 0), 1000, fixedRng(0.9));
+    expect(out.k).toBe(1);
+    expect(out.zero).toBe(true);
+    expect(out.multiplier).toBe(C.FIRE_MULT);
+    expect(out.earned).toBe(2);
+    expect(out.round.fireUntil).toBe(1000 + C.FIRE_DURATION_MS);
   });
 
-  it('при горящем огне одиночный отрезок идёт ×2, множители не стакаются', () => {
+  it('при горящем огне множители не стакаются: потолок ×2', () => {
     const out = playSwap(
-      makeRound(['45', '56'], { fireMult: C.FIRE_MULT, fireUntil: 50_000 }),
-      swapRight(0, 0),
+      makeRound(['02', '18', '79'], { fireMult: C.FIRE_MULT, fireUntil: 50_000 }),
+      swapRight(2, 0),
       1000,
-      fixedRng(0.5),
+      fixedRng(0.9),
     );
     expect(out.multiplier).toBe(C.FIRE_MULT);
     expect(out.earned).toBe(out.k * C.FIRE_MULT);
   });
+
+  it('если после хода нет свапов — поле перемешивается в доску уровня', () => {
+    // после каскада останется колонка семёрок без ходов -> reshuffle
+    const out = playSwap(makeRound(['2', '4', '3', '5', '1', '5']), swapDown(1, 0), 1000, fixedRng(0.9));
+    expect(out.reshuffled).toBe(true);
+    expect(out.round.board[0]!.length).toBe(5); // 5 колонок уровня 1
+  });
 });
 
 describe('невалидный свап — без последствий', () => {
-  const bad = swapRight(0, 0); // [[1,2],[3,4]] ничего не лопает
+  const bad = swapRight(0, 0); // [[1,2],[3,4]]: окон из трёх нет вообще
 
   it('раунд не меняется: ни доска, ни счёт, ни время', () => {
     const r0 = makeRound(['12', '34']);
-    const out = playSwap(r0, bad, 1000, fixedRng(0.5));
+    const out = playSwap(r0, bad, 1000, fixedRng(0.9));
     expect(out.waves).toBeNull();
     expect(out.earned).toBe(0);
     expect(out.round).toEqual(r0);
   });
 
   it('после endsAt ходы не принимаются', () => {
-    expect(() => playSwap(makeRound(['12', '34']), bad, 60_001, fixedRng(0.5))).toThrowError(
+    expect(() => playSwap(makeRound(['12', '34']), bad, 60_001, fixedRng(0.9))).toThrowError(
       new GameError('ROUND_OVER'),
     );
   });

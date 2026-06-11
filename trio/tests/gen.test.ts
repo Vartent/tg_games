@@ -5,10 +5,10 @@ import {
 } from '../src/game';
 
 describe('параметры уровней (как в «Десятке»)', () => {
-  it('размер поля держится 2 уровня, плато с 9-го', () => {
-    expect([levelCols(1), levelRows(1), levelMaxTile(1)]).toEqual([5, 8, 5]);
-    expect([levelCols(2), levelRows(2), levelMaxTile(2)]).toEqual([5, 8, 5]);
-    expect([levelCols(3), levelRows(3), levelMaxTile(3)]).toEqual([6, 9, 6]);
+  it('размер поля держится 2 уровня, плато с 9-го; номиналы до 9 с первого уровня', () => {
+    expect([levelCols(1), levelRows(1), levelMaxTile(1)]).toEqual([5, 8, 9]);
+    expect([levelCols(2), levelRows(2), levelMaxTile(2)]).toEqual([5, 8, 9]);
+    expect([levelCols(3), levelRows(3), levelMaxTile(3)]).toEqual([6, 9, 9]);
     expect([levelCols(9), levelRows(9), levelMaxTile(9)]).toEqual([9, 12, 9]);
     expect([levelCols(50), levelRows(50), levelMaxTile(50)]).toEqual([9, 12, 9]);
   });

@@ -48,8 +48,9 @@ export function levelRows(level: number): number {
   return levelCols(level) + C.ROWS_OFFSET;
 }
 
-export function levelMaxTile(level: number): number {
-  return Math.min(C.BASE_MAX_TILE + sizeStep(level), C.MAX_TILE);
+/** Номиналы 1..9 с первого уровня (для троек на 10 нужен полный разброс). */
+export function levelMaxTile(_level: number): number {
+  return C.MAX_TILE;
 }
 
 /** Лимит зеро на поле: 0 до ZERO_START_LEVEL, дальше 1 + ещё по одному каждые ZERO_STEP_LEVELS. */
@@ -86,9 +87,8 @@ export function countZeros(board: Board): number {
 }
 
 /**
- * Все лопающиеся отрезки: горизонтальные и вертикальные, длина >= 2, без пустот,
- * сумма ровно GROUP_TARGET. Зеро сумму не меняет, поэтому после превышения цели
- * отрезок длиннее не смотрим (сумма не убывает).
+ * Все лопающиеся тройки: горизонтальные и вертикальные отрезки ровно из GROUP_LEN
+ * клеток, без пустот, с суммой ровно GROUP_TARGET. Зеро (0) сумму не меняет.
  */
 export function findGroups(board: Board): CellPos[][] {
   const out: CellPos[][] = [];
@@ -96,18 +96,19 @@ export function findGroups(board: Board): CellPos[][] {
   const Cn = cols(board);
 
   const scan = (len: number, cellAt: (i: number) => CellPos) => {
-    for (let i = 0; i < len - 1; i++) {
+    for (let i = 0; i + C.GROUP_LEN <= len; i++) {
       let sum = 0;
-      for (let j = i; j < len; j++) {
+      let solid = true;
+      for (let j = i; j < i + C.GROUP_LEN; j++) {
         const tile = board[cellAt(j).r]?.[cellAt(j).c] ?? null;
-        if (tile === null) break;
-        sum += tile;
-        if (j > i && sum === C.GROUP_TARGET) {
-          const cells: CellPos[] = [];
-          for (let t = i; t <= j; t++) cells.push(cellAt(t));
-          out.push(cells);
+        if (tile === null) {
+          solid = false;
+          break;
         }
-        if (sum > C.GROUP_TARGET) break;
+        sum += tile;
+      }
+      if (solid && sum === C.GROUP_TARGET) {
+        out.push(Array.from({ length: C.GROUP_LEN }, (_, t) => cellAt(i + t)));
       }
     }
   };
@@ -208,17 +209,20 @@ export function swapBoard(board: Board, swap: Swap): Board {
   return next;
 }
 
-/** Есть ли в линии отрезок (длина >= 2, без пустот) с суммой ровно GROUP_TARGET. */
+/** Есть ли в линии тройка (ровно GROUP_LEN подряд, без пустот) с суммой ровно GROUP_TARGET. */
 function lineHasGroup(line: (number | null)[]): boolean {
-  for (let i = 0; i < line.length - 1; i++) {
+  for (let i = 0; i + C.GROUP_LEN <= line.length; i++) {
     let sum = 0;
-    for (let j = i; j < line.length; j++) {
+    let solid = true;
+    for (let j = i; j < i + C.GROUP_LEN; j++) {
       const tile = line[j];
-      if (tile === null || tile === undefined) break;
+      if (tile === null || tile === undefined) {
+        solid = false;
+        break;
+      }
       sum += tile;
-      if (j > i && sum === C.GROUP_TARGET) return true;
-      if (sum > C.GROUP_TARGET) break;
     }
+    if (solid && sum === C.GROUP_TARGET) return true;
   }
   return false;
 }
@@ -258,23 +262,24 @@ export function hasAnyValidSwap(board: Board): boolean {
 
 // ===== Генерация =====
 
-/** Замыкает ли номинал v в клетке (r,c) отрезок с суммой цели (в строке или колонке,
- *  по всем окнам, содержащим клетку; пустые клетки разрывают окно). Каждая группа
- *  содержит «последнюю поставленную» клетку, поэтому проверки при каждой постановке
- *  достаточно, чтобы постановки не создавали групп. */
+/** Замыкает ли номинал v в клетке (r,c) тройку с суммой цели (в строке или колонке,
+ *  по всем окнам длины GROUP_LEN, содержащим клетку; пустые клетки разрывают окно).
+ *  Каждая группа содержит «последнюю поставленную» клетку, поэтому проверки при
+ *  каждой постановке достаточно, чтобы постановки не создавали групп. */
 function completesGroup(board: Board, r: number, c: number, v: number): boolean {
   const line = (len: number, at: (i: number) => number | null, pos: number): boolean => {
-    let lo = pos;
-    while (lo > 0 && at(lo - 1) !== null) lo--;
-    for (let i = lo; i <= pos; i++) {
+    for (let i = Math.max(0, pos - C.GROUP_LEN + 1); i <= pos && i + C.GROUP_LEN <= len; i++) {
       let sum = 0;
-      for (let j = i; j < len; j++) {
+      let solid = true;
+      for (let j = i; j < i + C.GROUP_LEN; j++) {
         const tile = j === pos ? v : at(j);
-        if (tile === null) break;
+        if (tile === null) {
+          solid = false;
+          break;
+        }
         sum += tile;
-        if (j > i && j >= pos && sum === C.GROUP_TARGET) return true;
-        if (sum > C.GROUP_TARGET) break;
       }
+      if (solid && sum === C.GROUP_TARGET) return true;
     }
     return false;
   };
