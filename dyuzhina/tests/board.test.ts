@@ -28,20 +28,21 @@ describe('PRNG', () => {
 });
 
 describe('размер поля и номиналы по уровню (единственная ось сложности)', () => {
-  it('уровень 1: поле 5×8, номиналы до 5', () => {
-    expect(levelCols(1)).toBe(5);
-    expect(levelRows(1)).toBe(8);
-    expect(levelMaxTile(1)).toBe(5);
+  it('уровни 1-2: поле 5×8, номиналы до 5', () => {
+    expect([levelCols(1), levelRows(1), levelMaxTile(1)]).toEqual([5, 8, 5]);
+    expect([levelCols(2), levelRows(2), levelMaxTile(2)]).toEqual([5, 8, 5]);
   });
 
-  it('каждый уровень: +1 колонка, +1 ряд, +1 номинал', () => {
-    expect([levelCols(2), levelRows(2), levelMaxTile(2)]).toEqual([6, 9, 6]);
-    expect([levelCols(3), levelRows(3), levelMaxTile(3)]).toEqual([7, 10, 7]);
-    expect([levelCols(4), levelRows(4), levelMaxTile(4)]).toEqual([8, 11, 8]);
+  it('каждые 2 уровня: +1 колонка, +1 ряд, +1 номинал', () => {
+    expect([levelCols(3), levelRows(3), levelMaxTile(3)]).toEqual([6, 9, 6]);
+    expect([levelCols(4), levelRows(4), levelMaxTile(4)]).toEqual([6, 9, 6]);
+    expect([levelCols(5), levelRows(5), levelMaxTile(5)]).toEqual([7, 10, 7]);
+    expect([levelCols(7), levelRows(7), levelMaxTile(7)]).toEqual([8, 11, 8]);
   });
 
-  it('плато с 5-го уровня: 9×12, номиналы до 9', () => {
-    expect([levelCols(5), levelRows(5), levelMaxTile(5)]).toEqual([9, 12, 9]);
+  it('плато с 9-го уровня: 9×12, номиналы до 9', () => {
+    expect([levelCols(9), levelRows(9), levelMaxTile(9)]).toEqual([9, 12, 9]);
+    expect([levelCols(10), levelRows(10), levelMaxTile(10)]).toEqual([9, 12, 9]);
     expect([levelCols(50), levelRows(50), levelMaxTile(50)]).toEqual([9, 12, 9]);
   });
 });
@@ -83,7 +84,7 @@ describe('распределение номиналов', () => {
   it('распределение следует TILE_WEIGHTS (сейчас равномерное: каждый номинал ~1/9 ± допуск)', () => {
     const counts = new Array(10).fill(0) as number[];
     for (let seed = 100; seed < 115; seed++) {
-      for (const tile of generateBoard(seed, 5).flat()) counts[tile as number] = (counts[tile as number] ?? 0) + 1;
+      for (const tile of generateBoard(seed, 9).flat()) counts[tile as number] = (counts[tile as number] ?? 0) + 1; // ур. 9 — плато, все номиналы 1..9
     }
     const total = counts.reduce((a, b) => a + b, 0);
     const weightTotal = Object.values(C.TILE_WEIGHTS).reduce((a, b) => a + b, 0);

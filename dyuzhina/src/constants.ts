@@ -20,12 +20,15 @@ export const UNIT_WORD = CHAIN_TARGET === 12 ? 'дюжин' : 'десяток';
 /**
  * Сложность определяется размером поля (единственная ось):
  * уровень 1 — поле BASE_COLS×(BASE_COLS+ROWS_OFFSET) и номиналы 1..BASE_MAX_TILE;
- * каждый уровень добавляет +1 колонку, +1 ряд и +1 номинал до плато (MAX_COLS, MAX_TILE).
+ * каждые LEVELS_PER_SIZE уровней добавляется +1 колонка, +1 ряд и +1 номинал
+ * до плато (MAX_COLS, MAX_TILE).
  */
 export const BASE_COLS = 5;
 export const MAX_COLS = 9;
 export const ROWS_OFFSET = 3;
 export const BASE_MAX_TILE = 5;
+/** Сколько уровней поле держит один размер. */
+export const LEVELS_PER_SIZE = 2;
 
 /** Веса номиналов: 1–5 равновероятны, старшие — тем реже, чем крупнее. */
 export const TILE_WEIGHTS: Record<number, number> = {

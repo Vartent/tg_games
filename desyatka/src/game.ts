@@ -36,9 +36,12 @@ function randomDigit(rng: () => number, maxTile: number): number {
 
 // ===== Параметры уровня =====
 
-/** Колонок на уровне: 5 -> 9, +1 за уровень. */
+/** Ступень размера: поле держит один размер LEVELS_PER_SIZE уровней. */
+const sizeStep = (level: number) => Math.floor((level - 1) / C.LEVELS_PER_SIZE);
+
+/** Колонок на уровне: 5 -> 9, +1 за ступень размера. */
 export function levelCols(level: number): number {
-  return Math.min(C.BASE_COLS + (level - 1), C.MAX_COLS);
+  return Math.min(C.BASE_COLS + sizeStep(level), C.MAX_COLS);
 }
 
 /** Рядов на уровне: колонки + ROWS_OFFSET (портретная пропорция). */
@@ -48,7 +51,7 @@ export function levelRows(level: number): number {
 
 /** Максимальный номинал на уровне: 5 -> 9, новый номинал с каждым расширением поля. */
 export function levelMaxTile(level: number): number {
-  return Math.min(C.BASE_MAX_TILE + (level - 1), C.MAX_TILE);
+  return Math.min(C.BASE_MAX_TILE + sizeStep(level), C.MAX_TILE);
 }
 
 /** Цель уровня в зачётах (десятках/дюжинах). */
