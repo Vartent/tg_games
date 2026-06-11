@@ -54,6 +54,14 @@ export const FIRE_MIN_K = 2;
 export const FIRE_MULT = 2;
 export const FIRE_DURATION_MS = 10_000;
 
+/** Зеро — зелёная клетка с номиналом 0. Появляется с ZERO_START_LEVEL, на поле
+ *  одновременно не больше maxZeros(level): 1 шт., каждые ZERO_STEP_LEVELS уровней +1.
+ *  Цепочка с зеро идёт сразу с множителем огня и зажигает/перезапускает огонёк. */
+export const ZERO_START_LEVEL = 8;
+export const ZERO_STEP_LEVELS = 12;
+/** Шанс зеро на каждую новую клетку (генерация и досыпка), пока не упёрлись в лимит. */
+export const ZERO_SPAWN_CHANCE = 0.06;
+
 /** Штраф за неуспешную попытку (невалидная цепь при отпускании). Подряд (внутри окна) —
  *  эскалация: 1с, 2с, 3с... Сбрасывается паузой или валидной цепью. */
 export const FAIL_PENALTY_MS = 1_000;

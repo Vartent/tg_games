@@ -162,6 +162,18 @@ body {
 .d4 { color: var(--t4); } .d5 { color: var(--t5); } .d6 { color: var(--t6); }
 .d7 { color: var(--t7); } .d8 { color: var(--t8); } .d9 { color: var(--t9); }
 
+/* зеро: зелёная клетка, цепь с ней — ×2 и огонёк */
+.tile.d0 {
+  background: #2fbf63;
+  color: #fff;
+  box-shadow: 0 0 10px rgba(47, 191, 99, 0.5);
+  animation: zero-glow 1.6s ease-in-out infinite;
+}
+@keyframes zero-glow {
+  0%, 100% { box-shadow: 0 0 6px rgba(47, 191, 99, 0.35); }
+  50% { box-shadow: 0 0 14px rgba(47, 191, 99, 0.75); }
+}
+
 .game-footer { display: flex; gap: 8px; }
 .game-footer button { flex: 1; }
 

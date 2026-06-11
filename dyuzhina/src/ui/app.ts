@@ -167,7 +167,8 @@ function moveTip(x: number, y: number): void {
   tip.hidden = false;
   const sum = G.pathSum(round.board, path);
   const k = G.unitsIn(sum);
-  tip.textContent = k > 0 ? `${sum} = ${k}×${C.CHAIN_TARGET}` : String(sum);
+  const zero = path.some((p) => round!.board[p.r]?.[p.c] === 0);
+  tip.textContent = k > 0 ? `${sum} = ${k}×${C.CHAIN_TARGET}${zero ? ' ×2' : ''}` : String(sum);
   tip.className = `drag-tip${k > 0 ? ' is-target' : sum > C.CHAIN_SUM_CAP ? ' is-over' : ''}`;
   const step = boardStep(document.getElementById('board')!);
   const half = tip.offsetWidth / 2 || 36;

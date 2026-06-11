@@ -54,6 +54,12 @@ export function levelMaxTile(level: number): number {
   return Math.min(C.BASE_MAX_TILE + sizeStep(level), C.MAX_TILE);
 }
 
+/** Лимит зеро на поле: 0 до ZERO_START_LEVEL, дальше 1 + ещё по одному каждые ZERO_STEP_LEVELS. */
+export function maxZeros(level: number): number {
+  if (level < C.ZERO_START_LEVEL) return 0;
+  return 1 + Math.floor((level - C.ZERO_START_LEVEL) / C.ZERO_STEP_LEVELS);
+}
+
 /** Цель уровня в зачётах (десятках/дюжинах). */
 export function levelGoal(level: number): number {
   return Math.min(C.BASE_GOAL + (level - 1) * C.GOAL_STEP, C.MAX_GOAL);
@@ -76,18 +82,33 @@ function inBounds(b: Board, p: CellPos): boolean {
 /** Ключ клетки; stride 32 покрывает любые размеры поля. */
 const key = (p: CellPos) => p.r * 32 + p.c;
 
+/** Зеро на доске сейчас. */
+export function countZeros(board: Board): number {
+  let n = 0;
+  for (const row of board) for (const tile of row) if (tile === 0) n++;
+  return n;
+}
+
 /**
  * Сгенерировать доску уровня от seed: размер и номиналы — по уровню,
- * гарантируется хотя бы одна валидная цепочка (иначе seed+1, ...).
+ * зеро — не больше maxZeros(level), гарантируется хотя бы одна валидная цепочка (иначе seed+1, ...).
  */
 export function generateBoard(seed: number, level = 1): Board {
   const r = levelRows(level);
   const c = levelCols(level);
   const maxTile = levelMaxTile(level);
+  const zeroCap = maxZeros(level);
   for (let s = seed; ; s++) {
     const rng = createRng(s);
+    let zeros = 0;
     const board: Board = Array.from({ length: r }, () =>
-      Array.from({ length: c }, () => randomDigit(rng, maxTile)),
+      Array.from({ length: c }, () => {
+        if (zeros < zeroCap && rng() < C.ZERO_SPAWN_CHANCE) {
+          zeros++;
+          return 0;
+        }
+        return randomDigit(rng, maxTile);
+      }),
     );
     if (hasAnyUnitPath(board)) return board;
   }
@@ -192,11 +213,17 @@ function placeForcedRun(board: Board, maxTile: number): void {
 }
 
 /**
- * Лопнуть клетки цепочки, схлопнуть колонки вниз, досыпать новые цифры сверху (номиналы <= maxTile).
- * Кратность суммы не проверяет (валидация — в playPath). Гарантирует проходимость результата:
- * до REFILL_ATTEMPTS перегенераций досыпки, затем принудительная связка.
+ * Лопнуть клетки цепочки, схлопнуть колонки вниз, досыпать новые цифры сверху (номиналы <= maxTile,
+ * зеро — пока на доске их меньше zeroCap). Кратность суммы не проверяет (валидация — в playPath).
+ * Гарантирует проходимость результата: до REFILL_ATTEMPTS перегенераций досыпки, затем принудительная связка.
  */
-export function applyPath(board: Board, path: Path, maxTile: number, rng: () => number): PathResult {
+export function applyPath(
+  board: Board,
+  path: Path,
+  maxTile: number,
+  rng: () => number,
+  zeroCap = 0,
+): PathResult {
   const popped = new Set<number>(path.map(key));
   let cleared = 0;
   for (const p of path) {
@@ -220,8 +247,17 @@ export function applyPath(board: Board, path: Path, maxTile: number, rng: () => 
     for (let r = writeR; r >= 0; r--) spawnCells.push({ r, c });
   }
 
+  const baseZeros = countZeros(next); // выжившие зеро занимают лимит
   const fill = () => {
-    for (const p of spawnCells) next[p.r]![p.c] = randomDigit(rng, maxTile);
+    let zeros = baseZeros;
+    for (const p of spawnCells) {
+      if (zeros < zeroCap && rng() < C.ZERO_SPAWN_CHANCE) {
+        next[p.r]![p.c] = 0;
+        zeros++;
+      } else {
+        next[p.r]![p.c] = randomDigit(rng, maxTile);
+      }
+    }
   };
   fill();
   let attempts = 0;
@@ -272,6 +308,7 @@ export function isFireActive(round: Round, now: number): boolean {
  * пока огонь горит, ЛЮБАЯ цепочка идёт с множителем FIRE_MULT. Цепь на две дюжины
  * зажигает/перезапускает огонь и даёт CHAIN_TIME_BONUS_MS к таймеру; одиночная дюжина
  * огонь не трогает — он гаснет только по времени.
+ * Зеро в цепочке: множитель FIRE_MULT применяется к ЭТОЙ же цепи и огонь зажигается/перезапускается.
  * Невалидная -> штраф временем: FAIL_PENALTY_MS, при спаме (следующая неудача раньше
  * FAIL_SPAM_WINDOW_MS) — эскалация ×2, ×3... Валидная цепь сбрасывает эскалацию.
  * После endsAt — ROUND_OVER.
@@ -288,22 +325,24 @@ export function playPath(round: Round, path: Path, now: number, rng: () => numbe
       k: 0,
       multiplier: 1,
       earned: 0,
+      zero: false,
       penaltyMs,
     };
   }
   const k = unitsIn(pathSum(round.board, path));
-  const result = applyPath(round.board, path, levelMaxTile(round.level), rng);
+  const zero = path.some((p) => round.board[p.r]?.[p.c] === 0);
+  const result = applyPath(round.board, path, levelMaxTile(round.level), rng, maxZeros(round.level));
 
-  const multiplier = isFireActive(round, now) ? round.fireMult : 1;
+  const multiplier = zero || isFireActive(round, now) ? C.FIRE_MULT : 1;
   const earned = k * multiplier;
-  const ignites = k >= C.FIRE_MIN_K;
+  const ignites = k >= C.FIRE_MIN_K || zero;
 
   return {
     round: {
       ...round,
       board: result.board,
       score: round.score + earned,
-      endsAt: round.endsAt + (ignites ? C.CHAIN_TIME_BONUS_MS : 0),
+      endsAt: round.endsAt + (k >= C.FIRE_MIN_K ? C.CHAIN_TIME_BONUS_MS : 0),
       fireMult: ignites ? C.FIRE_MULT : round.fireMult,
       fireUntil: ignites ? now + C.FIRE_DURATION_MS : round.fireUntil,
       failStreak: 0,
@@ -313,6 +352,7 @@ export function playPath(round: Round, path: Path, now: number, rng: () => numbe
     k,
     multiplier,
     earned,
+    zero,
     penaltyMs: 0,
   };
 }

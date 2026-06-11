@@ -1,4 +1,5 @@
-/** Доска: rows × cols, значение плитки 1..9 или null (лопнута, до досыпки). board[row][col]. */
+/** Доска: rows × cols, значение плитки 0..9 или null (лопнута, до досыпки). board[row][col].
+ *  0 — зеро: зелёная клетка, к сумме не добавляет, цепь с ней идёт ×2 и зажигает огонёк. */
 export type Board = (number | null)[][];
 
 export interface CellPos {
@@ -54,6 +55,8 @@ export interface PlayOutcome {
   multiplier: number;
   /** Начислено дюжин: k * multiplier. */
   earned: number;
+  /** В цепочке было зеро (×2 этой же цепи + огонёк). */
+  zero: boolean;
   /** Снято времени за неуспешную попытку, мс (0 при валидной цепи). */
   penaltyMs: number;
 }
