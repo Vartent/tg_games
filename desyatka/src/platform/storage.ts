@@ -1,6 +1,17 @@
 /** Сохранение профиля: Telegram CloudStorage с фолбэком на localStorage. */
 import { tg, supports } from './telegram';
-import { GEMS_START, CHAIN_TARGET } from '../constants';
+import { GEMS_START, RECT_TARGET } from '../constants';
+
+/** Доска дня: одна попытка в день, стрик подряд сыгранных дней. */
+export interface DailyState {
+  /** ISO-дата последней сыгранной доски дня (YYYY-MM-DD, UTC). */
+  playedOn: string;
+  streak: number;
+  /** Лучший результат доски дня за всё время, в очках. */
+  best: number;
+  /** Результат последней сыгранной доски, в очках. */
+  lastScore: number;
+}
 
 export interface Profile {
   /** Текущий уровень (следующий к игре). */
@@ -11,6 +22,11 @@ export interface Profile {
   roundsPlayed: number;
   /** Гемы — внутренняя валюта (продолжение после таймаута; покупка за Stars позже). */
   gems: number;
+  /** Звёзды по уровням: level -> 1..3 (лучший результат). */
+  stars: Record<string, number>;
+  /** Сколько раз поле вычищено полностью. */
+  perfects: number;
+  daily: DailyState;
 }
 
 export const FRESH_PROFILE: Profile = {
@@ -18,9 +34,12 @@ export const FRESH_PROFILE: Profile = {
   bestLevel: 0,
   roundsPlayed: 0,
   gems: GEMS_START,
+  stars: {},
+  perfects: 0,
+  daily: { playedOn: '', streak: 0, best: 0, lastScore: 0 },
 };
 
-const KEY = `chain${CHAIN_TARGET}_profile_v1`;
+const KEY = `chain${RECT_TARGET}_profile_v1`;
 
 function cloudGet(key: string): Promise<string | null> {
   return new Promise((resolve) => {

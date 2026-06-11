@@ -148,20 +148,22 @@ body {
 .tile {
   border-radius: 9px;
   display: flex; align-items: center; justify-content: center;
-  font-size: clamp(14px, 4.6vw, 24px);
+  font-size: clamp(12px, 4.2vw, 22px);
   font-weight: 800;
   aspect-ratio: 1;
   background: var(--surface);
   position: relative;
   will-change: transform;
 }
+/* лопнутая клетка — «вычищенная территория», еле заметная выемка */
+.tile.empty { background: color-mix(in srgb, var(--surface) 30%, transparent); }
 .tile.sel {
-  outline: 3px solid var(--sel);
+  outline: 2px solid var(--sel);
   outline-offset: -2px;
-  transform: scale(0.93);
-  transition: transform 0.08s;
+  background: color-mix(in srgb, var(--sel) 16%, var(--surface));
   z-index: 1;
 }
+.tile.empty.sel { background: color-mix(in srgb, var(--sel) 10%, transparent); }
 .tile.pop { animation: pop 0.16s ease-out forwards; }
 @keyframes pop {
   0% { transform: scale(1); opacity: 1; }
@@ -230,3 +232,17 @@ button.ghost {
 .panel .big-score { font-size: 52px; font-weight: 900; color: var(--accent); }
 .panel .label { color: var(--muted); font-size: 15px; }
 .panel .record { color: var(--good); font-weight: 800; }
+
+/* ===== Рамка-режим: звёзды, perfect, доска дня ===== */
+.stars { font-size: 30px; letter-spacing: 6px; color: var(--accent); }
+.perfect {
+  font-weight: 800; color: var(--good);
+  letter-spacing: 1px;
+}
+.daily-btn {
+  appearance: none; border: none; cursor: pointer;
+  background: var(--surface); color: var(--text);
+  border-radius: 8px; padding: 1px 6px; font-size: 13px;
+  vertical-align: middle;
+}
+.clear-pct { font-size: 12px; font-weight: 700; color: var(--muted); }

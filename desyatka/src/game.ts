@@ -1,10 +1,11 @@
 /**
- * Логика игры: змейка с суммой, кратной цели (CHAIN_TARGET: 10 — «Десятка», 12 — «Дюжина»);
- * гравитация; уровни с растущим полем; огонёк за двойные цепочки. Чистые функции, без мутаций входа.
- * Никаких Date.now()/Math.random() — время (now, ms) и rng приходят параметрами.
- * Нарушения правил — throw new GameError(code).
+ * Логика игры (механика оригинала Fruit Box): рамка по полю, сумма цифр внутри ровно
+ * RECT_TARGET — лопаются; пустоты остаются (рамку можно тянуть через них); поле истощается.
+ * Уровни — растущая цель при фиксированном времени; доска дня — общий seed, score-attack.
+ * Чистые функции, без мутаций входа. Никаких Date.now()/Math.random() — время (now, ms)
+ * и seed приходят параметрами. Нарушения правил — throw new GameError(code).
  */
-import type { Board, CellPos, Path, PathResult, PlayOutcome, Round, TileMove } from './types';
+import type { Board, CellPos, Rect, RectOutcome, Round } from './types';
 import { GameError } from './types';
 import * as C from './constants';
 
@@ -22,65 +23,28 @@ export function createRng(seed: number): () => number {
   };
 }
 
-/** Взвешенный номинал 1..maxTile: 1–5 равновероятны, старшие реже (TILE_WEIGHTS). */
-function randomDigit(rng: () => number, maxTile: number): number {
-  let total = 0;
-  for (let d = C.MIN_TILE; d <= maxTile; d++) total += C.TILE_WEIGHTS[d] ?? 1;
-  let roll = rng() * total;
-  for (let d = C.MIN_TILE; d <= maxTile; d++) {
-    roll -= C.TILE_WEIGHTS[d] ?? 1;
-    if (roll < 0) return d;
-  }
-  return maxTile;
+/** Номинал 1..9 равновероятно (как в оригинале). */
+function randomDigit(rng: () => number): number {
+  return C.MIN_TILE + Math.floor(rng() * (C.MAX_TILE - C.MIN_TILE + 1));
 }
 
 // ===== Параметры уровня =====
 
-/** Ступень размера: поле держит один размер LEVELS_PER_SIZE уровней. */
-const sizeStep = (level: number) => Math.floor((level - 1) / C.LEVELS_PER_SIZE);
-
-/** Сторона квадратного поля на уровне: 3 -> 7, +1 за ступень размера. */
-export function levelCols(level: number): number {
-  return Math.min(C.BASE_COLS + sizeStep(level), C.MAX_COLS);
-}
-
-/** Поле квадратное. */
-export function levelRows(level: number): number {
-  return levelCols(level);
-}
-
-/** Максимальный номинал на уровне: 5 -> 9, новый номинал с каждым расширением поля. */
-export function levelMaxTile(level: number): number {
-  return Math.min(C.BASE_MAX_TILE + sizeStep(level), C.MAX_TILE);
-}
-
-/** Лимит зеро на поле: 0 до ZERO_START_LEVEL, дальше 1 + ещё по одному каждые ZERO_STEP_LEVELS. */
+/** Лимит зеро на поле уровня: 0 до ZERO_START_LEVEL, дальше 1 + по одному каждые ZERO_STEP_LEVELS. */
 export function maxZeros(level: number): number {
   if (level < C.ZERO_START_LEVEL) return 0;
   return 1 + Math.floor((level - C.ZERO_START_LEVEL) / C.ZERO_STEP_LEVELS);
 }
 
-/** Цель уровня в зачётах (десятках/дюжинах). */
+/** Цель уровня в клетках. */
 export function levelGoal(level: number): number {
   return Math.min(C.BASE_GOAL + (level - 1) * C.GOAL_STEP, C.MAX_GOAL);
-}
-
-/** Время уровня, мс. */
-export function levelTime(level: number): number {
-  return Math.max(C.BASE_TIME_MS - (level - 1) * C.TIME_STEP_MS, C.MIN_TIME_MS);
 }
 
 // ===== Доска =====
 
 const rows = (b: Board) => b.length;
 const cols = (b: Board) => b[0]?.length ?? 0;
-
-function inBounds(b: Board, p: CellPos): boolean {
-  return p.r >= 0 && p.c >= 0 && p.r < rows(b) && p.c < cols(b);
-}
-
-/** Ключ клетки; stride 32 покрывает любые размеры поля. */
-const key = (p: CellPos) => p.r * 32 + p.c;
 
 /** Зеро на доске сейчас. */
 export function countZeros(board: Board): number {
@@ -89,204 +53,128 @@ export function countZeros(board: Board): number {
   return n;
 }
 
-/**
- * Сгенерировать доску уровня от seed: размер и номиналы — по уровню,
- * зеро — не больше maxZeros(level), гарантируется хотя бы одна валидная цепочка (иначе seed+1, ...).
- */
-export function generateBoard(seed: number, level = 1): Board {
-  const r = levelRows(level);
-  const c = levelCols(level);
-  const maxTile = levelMaxTile(level);
-  const zeroCap = maxZeros(level);
+/** Сгенерировать поле ROWS×COLS от seed: цифры 1..9 равновероятно, зеро — не больше
+ *  zeroCap; гарантируется хотя бы одна валидная рамка (иначе seed+1, ...). */
+export function generateBoard(seed: number, zeroCap = 0): Board {
   for (let s = seed; ; s++) {
     const rng = createRng(s);
     let zeros = 0;
-    const board: Board = Array.from({ length: r }, () =>
-      Array.from({ length: c }, () => {
+    const board: Board = Array.from({ length: C.ROWS }, () =>
+      Array.from({ length: C.COLS }, () => {
         if (zeros < zeroCap && rng() < C.ZERO_SPAWN_CHANCE) {
           zeros++;
           return 0;
         }
-        return randomDigit(rng, maxTile);
+        return randomDigit(rng);
       }),
     );
-    if (hasAnyUnitPath(board)) return board;
+    if (hasAnyValidRect(board)) return board;
   }
 }
 
-/** Сумма цифр цепочки (пустые клетки за 0). */
-export function pathSum(board: Board, path: Path): number {
+/** Нормализованная рамка по двум углам. */
+export function normRect(a: CellPos, b: CellPos): Rect {
+  return {
+    r1: Math.min(a.r, b.r),
+    c1: Math.min(a.c, b.c),
+    r2: Math.max(a.r, b.r),
+    c2: Math.max(a.c, b.c),
+  };
+}
+
+function rectInBounds(board: Board, rect: Rect): boolean {
+  return rect.r1 >= 0 && rect.c1 >= 0 && rect.r2 < rows(board) && rect.c2 < cols(board);
+}
+
+/** Непустые клетки внутри рамки (зеро — тоже клетка). */
+export function cellsInRect(board: Board, rect: Rect): CellPos[] {
+  const out: CellPos[] = [];
+  for (let r = rect.r1; r <= rect.r2; r++) {
+    for (let c = rect.c1; c <= rect.c2; c++) {
+      if (board[r]![c] !== null) out.push({ r, c });
+    }
+  }
+  return out;
+}
+
+/** Сумма цифр внутри рамки (пустоты и зеро дают 0). */
+export function rectSum(board: Board, rect: Rect): number {
   let sum = 0;
-  for (const p of path) sum += (inBounds(board, p) ? board[p.r]![p.c] : 0) ?? 0;
+  for (let r = rect.r1; r <= rect.r2; r++) {
+    for (let c = rect.c1; c <= rect.c2; c++) {
+      sum += board[r]?.[c] ?? 0;
+    }
+  }
   return sum;
 }
 
-/** Зачётов в цепочке: sum/CHAIN_TARGET при сумме ровно ×1 или ×2 от цели, иначе 0. */
-export function unitsIn(sum: number): number {
-  if (sum <= 0 || sum % C.CHAIN_TARGET !== 0) return 0;
-  const k = sum / C.CHAIN_TARGET;
-  return k <= C.MAX_CHAIN_UNITS ? k : 0;
+/** Валидна ли рамка: в границах и сумма ровно RECT_TARGET. */
+export function isValidRect(board: Board, rect: Rect): boolean {
+  return rectInBounds(board, rect) && rectSum(board, rect) === C.RECT_TARGET;
 }
 
-/** Соседство — только по стороне (4 направления): на квадратной сетке диагональ
- *  пальцем почти не триггерится и размывает правила. */
-const isAdjacent = (a: CellPos, b: CellPos) => Math.abs(a.r - b.r) + Math.abs(a.c - b.c) === 1;
-
-/** Валидна ли змейка: уникальные непустые клетки, каждая — сосед предыдущей,
- *  сумма ровно CHAIN_TARGET или 2×CHAIN_TARGET (один-два зачёта с цепи). */
-export function isValidPath(board: Board, path: Path): boolean {
-  if (path.length === 0) return false;
-  const seen = new Set<number>();
-  for (let i = 0; i < path.length; i++) {
-    const p = path[i]!;
-    if (!inBounds(board, p)) return false;
-    if (board[p.r]![p.c] === null) return false;
-    if (seen.has(key(p))) return false;
-    seen.add(key(p));
-    if (i > 0 && !isAdjacent(path[i - 1]!, p)) return false;
-  }
-  return unitsIn(pathSum(board, path)) > 0;
-}
-
-/**
- * Есть ли на доске хотя бы одна валидная цепочка (сумма ×1/×2 от цели).
- * DFS с отсечением. При исчерпании бюджета узлов — false: на живых досках цепочка находится
- * за первые сотни узлов, а бюджет выедают как раз вырожденные доски без цепочек; ложный
- * отрицательный ответ безопасен (генерация возьмёт следующий seed, досыпка положит связку).
- */
-export function hasAnyUnitPath(board: Board): boolean {
-  let nodes = 0;
-  const visited = new Set<number>();
-
-  const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]] as const;
-  const dfs = (p: CellPos, sum: number): boolean => {
-    if (++nodes > C.PATH_SEARCH_BUDGET) throw nodes;
-    if (unitsIn(sum) > 0) return true;
-    if (sum >= C.CHAIN_SUM_CAP) return false;
-    for (const [dr, dc] of dirs) {
-      const next = { r: p.r + dr, c: p.c + dc };
-      if (!inBounds(board, next)) continue;
-      const tile = board[next.r]![next.c];
-      if (tile == null || visited.has(key(next))) continue;
-      visited.add(key(next));
-      if (dfs(next, sum + tile)) return true;
-      visited.delete(key(next));
-    }
-    return false;
-  };
-
-  try {
-    for (let r = 0; r < rows(board); r++) {
-      for (let c = 0; c < cols(board); c++) {
-        const tile = board[r]![c];
-        if (tile == null) continue;
-        visited.clear();
-        visited.add(key({ r, c }));
-        if (dfs({ r, c }, tile)) return true;
-      }
-    }
-    return false;
-  } catch {
-    return false; // бюджет исчерпан
-  }
-}
-
-// ===== Гравитация и досыпка =====
-
-/** Принудительная связка на один зачёт из максимальных номиналов,
- *  выкладывается бустрофедоном от (0,0): 5+5 (цель 10), 9+3 (цель 12) и т.п. */
-function placeForcedRun(board: Board, maxTile: number): void {
-  const run: number[] = [];
-  let rest = C.CHAIN_TARGET;
-  while (rest > maxTile) {
-    run.push(maxTile);
-    rest -= maxTile;
-  }
-  run.push(rest);
-  run.forEach((digit, i) => {
-    const r = Math.floor(i / cols(board));
-    const cRaw = i % cols(board);
-    const c = r % 2 === 0 ? cRaw : cols(board) - 1 - cRaw;
-    board[r]![c] = digit;
-  });
-}
-
-/**
- * Лопнуть клетки цепочки, схлопнуть колонки вниз, досыпать новые цифры сверху (номиналы <= maxTile,
- * зеро — пока на доске их меньше zeroCap). Кратность суммы не проверяет (валидация — в playPath).
- * Гарантирует проходимость результата: до REFILL_ATTEMPTS перегенераций досыпки, затем принудительная связка.
- */
-export function applyPath(
-  board: Board,
-  path: Path,
-  maxTile: number,
-  rng: () => number,
-  zeroCap = 0,
-): PathResult {
-  const popped = new Set<number>(path.map(key));
-  let cleared = 0;
-  for (const p of path) {
-    if (inBounds(board, p) && board[p.r]![p.c] !== null) cleared++;
-  }
-
+/** Есть ли на поле хотя бы одна валидная рамка. Через 2D-префиксные суммы — O(1) на рамку. */
+export function hasAnyValidRect(board: Board): boolean {
   const R = rows(board);
   const Cn = cols(board);
-  const next: Board = Array.from({ length: R }, () => Array(Cn).fill(null));
-  const moves: TileMove[] = [];
-  const spawnCells: CellPos[] = [];
-  for (let c = 0; c < Cn; c++) {
-    let writeR = R - 1;
-    for (let r = R - 1; r >= 0; r--) {
-      const tile = board[r]![c];
-      if (tile == null || popped.has(key({ r, c }))) continue;
-      next[writeR]![c] = tile;
-      if (writeR !== r) moves.push({ from: { r, c }, to: { r: writeR, c } });
-      writeR--;
+  // P[r][c] — сумма прямоугольника (0,0)..(r-1,c-1)
+  const P: number[][] = Array.from({ length: R + 1 }, () => Array(Cn + 1).fill(0));
+  for (let r = 0; r < R; r++) {
+    for (let c = 0; c < Cn; c++) {
+      P[r + 1]![c + 1] = (board[r]![c] ?? 0) + P[r]![c + 1]! + P[r + 1]![c]! - P[r]![c]!;
     }
-    for (let r = writeR; r >= 0; r--) spawnCells.push({ r, c });
   }
-
-  const baseZeros = countZeros(next); // выжившие зеро занимают лимит
-  const fill = () => {
-    let zeros = baseZeros;
-    for (const p of spawnCells) {
-      if (zeros < zeroCap && rng() < C.ZERO_SPAWN_CHANCE) {
-        next[p.r]![p.c] = 0;
-        zeros++;
-      } else {
-        next[p.r]![p.c] = randomDigit(rng, maxTile);
+  const sum = (r1: number, c1: number, r2: number, c2: number) =>
+    P[r2 + 1]![c2 + 1]! - P[r1]![c2 + 1]! - P[r2 + 1]![c1]! + P[r1]![c1]!;
+  for (let r1 = 0; r1 < R; r1++) {
+    for (let r2 = r1; r2 < R; r2++) {
+      for (let c1 = 0; c1 < Cn; c1++) {
+        for (let c2 = c1; c2 < Cn; c2++) {
+          const s = sum(r1, c1, r2, c2);
+          if (s === C.RECT_TARGET) return true;
+          if (s > C.RECT_TARGET) break; // расширение вправо сумму не уменьшит
+        }
       }
     }
-  };
-  fill();
-  let attempts = 0;
-  while (!hasAnyUnitPath(next) && attempts < C.REFILL_ATTEMPTS) {
-    fill();
-    attempts++;
   }
-  if (!hasAnyUnitPath(next)) placeForcedRun(next, maxTile);
-
-  return { board: next, cleared, moves, spawns: spawnCells };
+  return false;
 }
 
-// ===== Раунд уровня =====
+/** Лопнуть клетки рамки: они становятся пустотами (без гравитации и досыпки). */
+export function applyRect(board: Board, rect: Rect): { board: Board; popped: CellPos[] } {
+  const popped = cellsInRect(board, rect);
+  const next = board.map((row) => [...row]);
+  for (const p of popped) next[p.r]![p.c] = null;
+  return { board: next, popped };
+}
 
-/** Начать уровень: поле, номиналы, цель (в дюжинах) и таймер — по уровню. */
-export function startLevel(level: number, seed: number, now: number): Round {
+// ===== Раунд =====
+
+function makeRound(level: number, daily: boolean, goal: number, seed: number, board: Board, now: number): Round {
   return {
     level,
-    goal: levelGoal(level),
+    daily,
+    goal,
     seed,
-    board: generateBoard(seed, level),
+    board,
+    totalCells: rows(board) * cols(board),
+    cleared: 0,
     score: 0,
     startedAt: now,
-    endsAt: now + levelTime(level),
+    endsAt: now + C.LEVEL_TIME_MS,
     extended: false,
-    fireMult: 1,
     fireUntil: 0,
-    failStreak: 0,
-    lastFailAt: 0,
   };
+}
+
+/** Начать уровень: поле от seed, цель по уровню, 2 минуты. */
+export function startLevel(level: number, seed: number, now: number): Round {
+  return makeRound(level, false, levelGoal(level), seed, generateBoard(seed, maxZeros(level)), now);
+}
+
+/** Доска дня: общий для всех seed (дата), score-attack без цели, один зеро. */
+export function startDaily(seed: number, now: number): Round {
+  return makeRound(0, true, 0, seed, generateBoard(seed, C.DAILY_ZEROS), now);
 }
 
 export function isRoundActive(round: Round, now: number): boolean {
@@ -294,65 +182,56 @@ export function isRoundActive(round: Round, now: number): boolean {
 }
 
 export function isWon(round: Round): boolean {
-  return round.score >= round.goal;
+  return !round.daily && round.score >= round.goal;
 }
 
-/** Горит ли огонёк в момент now. */
+/** Горит ли серия в момент now. */
 export function isFireActive(round: Round, now: number): boolean {
   return now < round.fireUntil;
 }
 
+/** Доля очищенного поля. */
+export function clearedRatio(round: Round): number {
+  return round.cleared / round.totalCells;
+}
+
+/** Звёзды за раунд: 1 — цель взята, 2/3 — за долю очистки. Дейли и проигрыш — 0. */
+export function starsFor(round: Round): number {
+  if (!isWon(round)) return 0;
+  const ratio = clearedRatio(round);
+  return 1 + (ratio >= C.STAR2_RATIO ? 1 : 0) + (ratio >= C.STAR3_RATIO ? 1 : 0);
+}
+
 /**
- * Цепочка в раунде: валидная (ровно ×1/×2 от цели) -> гравитация, начисление дюжин с огоньком:
- * пока огонь горит, ЛЮБАЯ цепочка идёт с множителем FIRE_MULT. Цепь на две дюжины
- * зажигает/перезапускает огонь и даёт CHAIN_TIME_BONUS_MS к таймеру; одиночная дюжина
- * огонь не трогает — он гаснет только по времени.
- * Зеро в цепочке: множитель FIRE_MULT применяется к ЭТОЙ же цепи и огонь зажигается/перезапускается.
- * Невалидная -> штраф временем: FAIL_PENALTY_MS, при спаме (следующая неудача раньше
- * FAIL_SPAM_WINDOW_MS) — эскалация ×2, ×3... Валидная цепь сбрасывает эскалацию.
- * После endsAt — ROUND_OVER.
+ * Ход: рамка по углам a-b. Валидная (сумма ровно цели) -> клетки лопаются и остаются
+ * пустотами; начисление = клетки × множитель. Серия: рамка не позже FIRE_WINDOW_MS после
+ * предыдущей идёт ×FIRE_MULT; зеро в рамке даёт ×FIRE_MULT сразу. Любая валидная рамка
+ * заводит/продлевает окно серии. Невалидная рамка — просто ничего (без штрафов).
+ * over=true — на поле не осталось ходов. После endsAt — ROUND_OVER.
  */
-export function playPath(round: Round, path: Path, now: number, rng: () => number): PlayOutcome {
+export function playRect(round: Round, a: CellPos, b: CellPos, now: number): RectOutcome {
   if (!isRoundActive(round, now)) throw new GameError('ROUND_OVER');
-  if (!isValidPath(round.board, path)) {
-    const spam = round.lastFailAt > 0 && now - round.lastFailAt < C.FAIL_SPAM_WINDOW_MS;
-    const failStreak = spam ? round.failStreak + 1 : 1;
-    const penaltyMs = C.FAIL_PENALTY_MS * failStreak;
-    return {
-      round: { ...round, endsAt: round.endsAt - penaltyMs, failStreak, lastFailAt: now },
-      result: null,
-      k: 0,
-      multiplier: 1,
-      earned: 0,
-      zero: false,
-      penaltyMs,
-    };
+  const rect = normRect(a, b);
+  if (!isValidRect(round.board, rect)) {
+    return { round, popped: [], multiplier: 1, earnedCells: 0, zero: false, over: false };
   }
-  const k = unitsIn(pathSum(round.board, path));
-  const zero = path.some((p) => round.board[p.r]?.[p.c] === 0);
-  const result = applyPath(round.board, path, levelMaxTile(round.level), rng, maxZeros(round.level));
-
+  const { board, popped } = applyRect(round.board, rect);
+  const zero = popped.some((p) => round.board[p.r]![p.c] === 0);
   const multiplier = zero || isFireActive(round, now) ? C.FIRE_MULT : 1;
-  const earned = k * multiplier;
-  const ignites = k >= C.FIRE_MIN_K || zero;
-
+  const earnedCells = popped.length * multiplier;
   return {
     round: {
       ...round,
-      board: result.board,
-      score: round.score + earned,
-      endsAt: round.endsAt + (k >= C.FIRE_MIN_K ? C.CHAIN_TIME_BONUS_MS : 0),
-      fireMult: ignites ? C.FIRE_MULT : round.fireMult,
-      fireUntil: ignites ? now + C.FIRE_DURATION_MS : round.fireUntil,
-      failStreak: 0,
-      lastFailAt: 0,
+      board,
+      cleared: round.cleared + popped.length,
+      score: round.score + earnedCells,
+      fireUntil: now + C.FIRE_WINDOW_MS,
     },
-    result,
-    k,
+    popped,
     multiplier,
-    earned,
+    earnedCells,
     zero,
-    penaltyMs: 0,
+    over: !hasAnyValidRect(board),
   };
 }
 
@@ -364,7 +243,12 @@ export function continueRound(round: Round, now: number): Round {
   return { ...round, endsAt: now + C.EXTENSION_MS, extended: true };
 }
 
-/** Текст шер-карточки. */
+/** Текст шер-карточки уровня. */
 export function shareText(bestLevel: number): string {
   return `«${C.GAME_NAME}»: дошёл до уровня ${bestLevel}. Соберёшь больше?`;
+}
+
+/** Текст шер-карточки доски дня. */
+export function shareDailyText(dateLabel: string, points: number, streak: number): string {
+  return `«${C.GAME_NAME}» — доска дня ${dateLabel}: ${points} очков, стрик ${streak} 🔥 У всех одно поле — побьёшь?`;
 }

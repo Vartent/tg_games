@@ -1,22 +1,27 @@
-import type { Board } from '../src/types';
+import type { Board, Round } from '../src/types';
+import { levelGoal } from '../src/game';
 
-/** Размер тестовой доски (соответствует плато уровней: 9×12). */
-export const T_COLS = 9;
-export const T_ROWS = 12;
+/** Доска из строк цифр как есть (без дополнения); '.' = пустая. */
+export function board(rowsSpec: string[]): Board {
+  return rowsSpec.map((row) => row.split('').map((ch) => (ch === '.' ? null : Number(ch))));
+}
 
-/** rng-заглушка: всегда одно значение. fixedRng(0) даёт цифру 1, fixedRng(0.9999) — максимальную. */
-export const fixedRng = (v = 0) => () => v;
-
-/** Доска из строк цифр; '.' = пустая. Дополняется девятками до T_ROWS×T_COLS.
- *  Девятки — «нейтральный» фон: для Σ10 пара 9+9=18 не собирается сама собой. */
-export function board(rowsSpec: string[], filler = '9'): Board {
-  const grid: Board = rowsSpec.map((row) =>
-    row.split('').map((ch) => (ch === '.' ? null : Number(ch))),
-  );
-  while (grid.length < T_ROWS) grid.push(filler.repeat(T_COLS).split('').map(Number));
-  return grid.map((row) => {
-    const r = [...row];
-    while (r.length < T_COLS) r.push(Number(filler));
-    return r;
-  });
+/** Раунд с подкрученной доской — для проверки ходов, серии и звёзд. */
+export function makeRound(rowsSpec: string[], overrides: Partial<Round> = {}): Round {
+  const b = board(rowsSpec);
+  return {
+    level: 1,
+    daily: false,
+    goal: levelGoal(1),
+    seed: 1,
+    board: b,
+    totalCells: b.length * (b[0]?.length ?? 0),
+    cleared: 0,
+    score: 0,
+    startedAt: 0,
+    endsAt: 120_000,
+    extended: false,
+    fireUntil: 0,
+    ...overrides,
+  };
 }

@@ -1,5 +1,5 @@
-/** Доска: rows × cols, значение плитки 0..9 или null (лопнута, до досыпки). board[row][col].
- *  0 — зеро: зелёная клетка, к сумме не добавляет, цепь с ней идёт ×2 и зажигает огонёк. */
+/** Доска: ROWS × COLS, значение клетки 0..9 или null (лопнута — пустота остаётся).
+ *  0 — зеро: зелёный джокер, к сумме рамки не добавляет, рамка с ним — ×2 + серия. */
 export type Board = (number | null)[][];
 
 export interface CellPos {
@@ -7,58 +7,47 @@ export interface CellPos {
   c: number;
 }
 
-/** Змейка: упорядоченная цепочка клеток. */
-export type Path = CellPos[];
+/** Нормализованная рамка: включительные углы, r1<=r2, c1<=c2. */
+export interface Rect {
+  r1: number;
+  c1: number;
+  r2: number;
+  c2: number;
+}
 
 export interface Round {
+  /** Номер уровня; 0 — доска дня. */
   level: number;
-  /** Дюжин для победы. */
+  daily: boolean;
+  /** Цель в клетках (0 у доски дня — там score-attack). */
   goal: number;
   seed: number;
   board: Board;
-  /** Собрано дюжин (с учётом огонька). */
+  /** Клеток на поле в начале раунда. */
+  totalCells: number;
+  /** Лопнуто клеток за раунд (для процента очистки и звёзд). */
+  cleared: number;
+  /** Зачётные клетки с учётом огонька (очки = score × RECT_TARGET). */
   score: number;
   startedAt: number;
   endsAt: number;
   extended: boolean;
-  /** Множитель огонька (1 = потушен). */
-  fireMult: number;
-  /** Момент (ms), до которого горит огонёк; 0 = потушен. */
+  /** Момент (ms), до которого живёт серия (огонёк); 0 = серия не начата. */
   fireUntil: number;
-  /** Неуспешных попыток подряд (для эскалации штрафа). */
-  failStreak: number;
-  /** Момент последней неуспешной попытки; 0 = не было. */
-  lastFailAt: number;
 }
 
-/** Перемещение выжившей плитки при гравитации (для анимации падения). */
-export interface TileMove {
-  from: CellPos;
-  to: CellPos;
-}
-
-/** Результат применения цепочки: новая доска + данные для анимации. */
-export interface PathResult {
-  board: Board;
-  cleared: number;
-  moves: TileMove[];
-  spawns: CellPos[];
-}
-
-/** Итог хода для UI: сколько дюжин в цепи, множитель огонька, начислено. */
-export interface PlayOutcome {
+/** Итог рамки для UI. popped пуст — рамка невалидна (ничего не происходит). */
+export interface RectOutcome {
   round: Round;
-  result: PathResult | null;
-  /** Дюжин в цепочке (sum / 12). */
-  k: number;
-  /** Множитель огонька, применённый к этому ходу. */
+  popped: CellPos[];
+  /** Множитель серии/зеро, применённый к этой рамке. */
   multiplier: number;
-  /** Начислено дюжин: k * multiplier. */
-  earned: number;
-  /** В цепочке было зеро (×2 этой же цепи + огонёк). */
+  /** Начислено зачётных клеток: popped.length × multiplier. */
+  earnedCells: number;
+  /** В рамке был зеро. */
   zero: boolean;
-  /** Снято времени за неуспешную попытку, мс (0 при валидной цепи). */
-  penaltyMs: number;
+  /** После рамки на поле не осталось валидных ходов — раунд закончен досрочно. */
+  over: boolean;
 }
 
 export class GameError extends Error {
