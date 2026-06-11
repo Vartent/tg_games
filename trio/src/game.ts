@@ -332,8 +332,6 @@ export function startLevel(level: number, seed: number, now: number): Round {
     extended: false,
     fireMult: 1,
     fireUntil: 0,
-    failStreak: 0,
-    lastFailAt: 0,
   };
 }
 
@@ -356,17 +354,14 @@ export function isFireActive(round: Round, now: number): boolean {
  * Пока огонь горит, ход идёт с множителем FIRE_MULT; 2+ отрезков за ход зажигают/перезапускают
  * огонь и дают MULTI_TIME_BONUS_MS; зеро в лопнувшем — ×FIRE_MULT этому же ходу + огонёк.
  * Если после хода не осталось валидных свапов — поле перемешивается (reshuffled).
- * Невалидный свап -> штраф временем с эскалацией при спаме (как в «Десятке»).
+ * Невалидный свап ничего не меняет (UI откатывает с дёрганьем, без штрафа).
  * После endsAt — ROUND_OVER.
  */
 export function playSwap(round: Round, swap: Swap, now: number, rng: () => number): SwapOutcome {
   if (!isRoundActive(round, now)) throw new GameError('ROUND_OVER');
   if (!isValidSwap(round.board, swap)) {
-    const spam = round.lastFailAt > 0 && now - round.lastFailAt < C.FAIL_SPAM_WINDOW_MS;
-    const failStreak = spam ? round.failStreak + 1 : 1;
-    const penaltyMs = C.FAIL_PENALTY_MS * failStreak;
     return {
-      round: { ...round, endsAt: round.endsAt - penaltyMs, failStreak, lastFailAt: now },
+      round,
       swapped: null,
       waves: null,
       k: 0,
@@ -374,7 +369,6 @@ export function playSwap(round: Round, swap: Swap, now: number, rng: () => numbe
       earned: 0,
       zero: false,
       reshuffled: false,
-      penaltyMs,
     };
   }
 
@@ -400,8 +394,6 @@ export function playSwap(round: Round, swap: Swap, now: number, rng: () => numbe
       endsAt: round.endsAt + (res.k >= C.FIRE_MIN_K ? C.MULTI_TIME_BONUS_MS : 0),
       fireMult: ignites ? C.FIRE_MULT : round.fireMult,
       fireUntil: ignites ? now + C.FIRE_DURATION_MS : round.fireUntil,
-      failStreak: 0,
-      lastFailAt: 0,
     },
     swapped,
     waves: res.waves,
@@ -410,7 +402,6 @@ export function playSwap(round: Round, swap: Swap, now: number, rng: () => numbe
     earned,
     zero: res.zero,
     reshuffled,
-    penaltyMs: 0,
   };
 }
 

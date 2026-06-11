@@ -212,22 +212,6 @@ function bindBoardPointer(): void {
 
 // ===== Ход и анимация =====
 
-/** Штраф: тултип с −N сек дёргается над клеткой свапа ~полсекунды. */
-function showPenalty(at: CellPos, penaltyMs: number): void {
-  const cell = tileEl(at.r, at.c)?.getBoundingClientRect();
-  if (!cell || penaltyMs <= 0) return;
-  const tip = document.getElementById('drag-tip')!;
-  tip.hidden = false;
-  tip.textContent = `−${Math.round(penaltyMs / 1000)}с`;
-  tip.className = 'drag-tip is-over shake';
-  tip.style.left = `${cell.left + cell.width / 2}px`;
-  tip.style.top = `${Math.max(cell.top - 40, 8)}px`;
-  window.setTimeout(() => {
-    tip.classList.remove('shake');
-    tip.hidden = true;
-  }, 650);
-}
-
 /** Сообщение «перемешали» по центру доски. */
 function showReshuffle(): void {
   const tip = document.getElementById('drag-tip');
@@ -255,11 +239,6 @@ function attemptSwap(swap: Swap): void {
   if (!outcome.waves) {
     haptic('error');
     nudgeTiles(swap);
-    showPenalty(swap.a, outcome.penaltyMs);
-    if (!G.isRoundActive(round, Date.now())) {
-      if (G.isWon(round)) finishWon();
-      else onTimeout();
-    }
     return;
   }
 

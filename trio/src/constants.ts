@@ -50,10 +50,6 @@ export const ZERO_START_LEVEL = 8;
 export const ZERO_STEP_LEVELS = 12;
 export const ZERO_SPAWN_CHANCE = 0.06;
 
-/** Штраф за невалидный свап (ничего не лопается). Подряд (внутри окна) — эскалация: 1с, 2с, 3с... */
-export const FAIL_PENALTY_MS = 1_000;
-export const FAIL_SPAM_WINDOW_MS = 2_000;
-
 /** Продолжение после таймаута: +30 сек, не больше одного за раунд. */
 export const EXTENSION_MS = 30_000;
 

@@ -18,8 +18,6 @@ function makeRound(rows: string[], overrides: Partial<Round> = {}): Round {
     extended: false,
     fireMult: 1,
     fireUntil: 0,
-    failStreak: 0,
-    lastFailAt: 0,
     ...overrides,
   };
 }
@@ -35,7 +33,6 @@ describe('валидный свап', () => {
     expect(out.k).toBeGreaterThanOrEqual(1);
     expect(out.earned).toBe(out.k * out.multiplier);
     expect(out.round.score).toBe(out.earned);
-    expect(out.round.failStreak).toBe(0);
   });
 
   it('2+ отрезков за ход зажигают огонёк и дают +10с', () => {
@@ -69,23 +66,15 @@ describe('валидный свап', () => {
   });
 });
 
-describe('невалидный свап — штраф с эскалацией', () => {
+describe('невалидный свап — без последствий', () => {
   const bad = swapRight(0, 0); // [[1,2],[3,4]] ничего не лопает
 
-  it('подряд внутри окна: 1с, 2с', () => {
-    const f1 = playSwap(makeRound(['12', '34']), bad, 1000, fixedRng(0.5));
-    expect(f1.waves).toBeNull();
-    expect(f1.penaltyMs).toBe(C.FAIL_PENALTY_MS);
-    expect(f1.round.board).toEqual(board(['12', '34'])); // доска не меняется
-    const f2 = playSwap(f1.round, bad, 1500, fixedRng(0.5));
-    expect(f2.penaltyMs).toBe(2 * C.FAIL_PENALTY_MS);
-    expect(f2.round.endsAt).toBe(60_000 - 3_000);
-  });
-
-  it('пауза дольше окна сбрасывает эскалацию', () => {
-    const f1 = playSwap(makeRound(['12', '34']), bad, 1000, fixedRng(0.5));
-    const f2 = playSwap(f1.round, bad, 1000 + C.FAIL_SPAM_WINDOW_MS + 1, fixedRng(0.5));
-    expect(f2.penaltyMs).toBe(C.FAIL_PENALTY_MS);
+  it('раунд не меняется: ни доска, ни счёт, ни время', () => {
+    const r0 = makeRound(['12', '34']);
+    const out = playSwap(r0, bad, 1000, fixedRng(0.5));
+    expect(out.waves).toBeNull();
+    expect(out.earned).toBe(0);
+    expect(out.round).toEqual(r0);
   });
 
   it('после endsAt ходы не принимаются', () => {

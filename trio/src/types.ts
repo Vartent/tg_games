@@ -28,10 +28,6 @@ export interface Round {
   fireMult: number;
   /** Момент (ms), до которого горит огонёк; 0 = потушен. */
   fireUntil: number;
-  /** Неуспешных свапов подряд (для эскалации штрафа). */
-  failStreak: number;
-  /** Момент последнего неуспешного свапа; 0 = не было. */
-  lastFailAt: number;
 }
 
 /** Перемещение выжившей плитки при гравитации (для анимации падения). */
@@ -49,7 +45,7 @@ export interface Wave {
   board: Board;
 }
 
-/** Итог хода для UI. waves === null — невалидный свап (штраф). */
+/** Итог хода для UI. waves === null — невалидный свап (ничего не лопается, без последствий). */
 export interface SwapOutcome {
   round: Round;
   /** Доска сразу после свапа, до каскадов (для анимации). */
@@ -65,8 +61,6 @@ export interface SwapOutcome {
   zero: boolean;
   /** После хода не осталось валидных свапов — поле перемешано заново. */
   reshuffled: boolean;
-  /** Снято времени за неуспешный свап, мс (0 при валидном). */
-  penaltyMs: number;
 }
 
 export class GameError extends Error {
