@@ -58,8 +58,8 @@ describe('раунд уровня', () => {
     expect(round.endsAt).toBe(1000 + levelTime(3));
     expect(round.fireMult).toBe(1);
     expect(isFireActive(round, 1000)).toBe(false);
-    expect(round.board).toHaveLength(9); // уровень 3 — вторая ступень размера: 6×9
-    expect(round.board[0]).toHaveLength(6);
+    expect(round.board).toHaveLength(4); // уровень 3 — вторая ступень размера: 4×4
+    expect(round.board[0]).toHaveLength(4);
   });
 
   it('активен строго до endsAt', () => {

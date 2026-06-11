@@ -39,14 +39,14 @@ function randomDigit(rng: () => number, maxTile: number): number {
 /** Ступень размера: поле держит один размер LEVELS_PER_SIZE уровней. */
 const sizeStep = (level: number) => Math.floor((level - 1) / C.LEVELS_PER_SIZE);
 
-/** Колонок на уровне: 5 -> 9, +1 за ступень размера. */
+/** Сторона квадратного поля на уровне: 3 -> 7, +1 за ступень размера. */
 export function levelCols(level: number): number {
   return Math.min(C.BASE_COLS + sizeStep(level), C.MAX_COLS);
 }
 
-/** Рядов на уровне: колонки + ROWS_OFFSET (портретная пропорция). */
+/** Поле квадратное. */
 export function levelRows(level: number): number {
-  return levelCols(level) + C.ROWS_OFFSET;
+  return levelCols(level);
 }
 
 /** Максимальный номинал на уровне: 5 -> 9, новый номинал с каждым расширением поля. */
@@ -128,8 +128,9 @@ export function unitsIn(sum: number): number {
   return k <= C.MAX_CHAIN_UNITS ? k : 0;
 }
 
-const isAdjacent = (a: CellPos, b: CellPos) =>
-  Math.abs(a.r - b.r) <= 1 && Math.abs(a.c - b.c) <= 1 && !(a.r === b.r && a.c === b.c);
+/** Соседство — только по стороне (4 направления): на квадратной сетке диагональ
+ *  пальцем почти не триггерится и размывает правила. */
+const isAdjacent = (a: CellPos, b: CellPos) => Math.abs(a.r - b.r) + Math.abs(a.c - b.c) === 1;
 
 /** Валидна ли змейка: уникальные непустые клетки, каждая — сосед предыдущей,
  *  сумма ровно CHAIN_TARGET или 2×CHAIN_TARGET (один-два зачёта с цепи). */
@@ -157,21 +158,19 @@ export function hasAnyUnitPath(board: Board): boolean {
   let nodes = 0;
   const visited = new Set<number>();
 
+  const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]] as const;
   const dfs = (p: CellPos, sum: number): boolean => {
     if (++nodes > C.PATH_SEARCH_BUDGET) throw nodes;
     if (unitsIn(sum) > 0) return true;
     if (sum >= C.CHAIN_SUM_CAP) return false;
-    for (let dr = -1; dr <= 1; dr++) {
-      for (let dc = -1; dc <= 1; dc++) {
-        if (!dr && !dc) continue;
-        const next = { r: p.r + dr, c: p.c + dc };
-        if (!inBounds(board, next)) continue;
-        const tile = board[next.r]![next.c];
-        if (tile == null || visited.has(key(next))) continue;
-        visited.add(key(next));
-        if (dfs(next, sum + tile)) return true;
-        visited.delete(key(next));
-      }
+    for (const [dr, dc] of dirs) {
+      const next = { r: p.r + dr, c: p.c + dc };
+      if (!inBounds(board, next)) continue;
+      const tile = board[next.r]![next.c];
+      if (tile == null || visited.has(key(next))) continue;
+      visited.add(key(next));
+      if (dfs(next, sum + tile)) return true;
+      visited.delete(key(next));
     }
     return false;
   };

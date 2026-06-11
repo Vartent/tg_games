@@ -137,7 +137,7 @@ function cellFromPoint(boardEl: HTMLElement, x: number, y: number): CellPos | nu
 const sameCell = (a: CellPos | undefined, b: CellPos) => !!a && a.r === b.r && a.c === b.c;
 const inPath = (p: CellPos) => path.some((q) => sameCell(q, p));
 const isNeighbor = (a: CellPos, b: CellPos) =>
-  Math.abs(a.r - b.r) <= 1 && Math.abs(a.c - b.c) <= 1 && !(a.r === b.r && a.c === b.c);
+  Math.abs(a.r - b.r) + Math.abs(a.c - b.c) === 1; // только по стороне, без диагоналей
 
 /** Тултип с текущей суммой: на TIP_CELLS_UP клеток выше пальца, не выходя за экран. */
 function moveTip(x: number, y: number): void {

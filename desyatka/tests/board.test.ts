@@ -28,22 +28,22 @@ describe('PRNG', () => {
 });
 
 describe('размер поля и номиналы по уровню (единственная ось сложности)', () => {
-  it('уровни 1-2: поле 5×8, номиналы до 5', () => {
-    expect([levelCols(1), levelRows(1), levelMaxTile(1)]).toEqual([5, 8, 5]);
-    expect([levelCols(2), levelRows(2), levelMaxTile(2)]).toEqual([5, 8, 5]);
+  it('уровни 1-2: квадрат 3×3, номиналы до 5', () => {
+    expect([levelCols(1), levelRows(1), levelMaxTile(1)]).toEqual([3, 3, 5]);
+    expect([levelCols(2), levelRows(2), levelMaxTile(2)]).toEqual([3, 3, 5]);
   });
 
-  it('каждые 2 уровня: +1 колонка, +1 ряд, +1 номинал', () => {
-    expect([levelCols(3), levelRows(3), levelMaxTile(3)]).toEqual([6, 9, 6]);
-    expect([levelCols(4), levelRows(4), levelMaxTile(4)]).toEqual([6, 9, 6]);
-    expect([levelCols(5), levelRows(5), levelMaxTile(5)]).toEqual([7, 10, 7]);
-    expect([levelCols(7), levelRows(7), levelMaxTile(7)]).toEqual([8, 11, 8]);
+  it('каждые 2 уровня: +1 к стороне квадрата, +1 номинал', () => {
+    expect([levelCols(3), levelRows(3), levelMaxTile(3)]).toEqual([4, 4, 6]);
+    expect([levelCols(4), levelRows(4), levelMaxTile(4)]).toEqual([4, 4, 6]);
+    expect([levelCols(5), levelRows(5), levelMaxTile(5)]).toEqual([5, 5, 7]);
+    expect([levelCols(7), levelRows(7), levelMaxTile(7)]).toEqual([6, 6, 8]);
   });
 
-  it('плато с 9-го уровня: 9×12, номиналы до 9', () => {
-    expect([levelCols(9), levelRows(9), levelMaxTile(9)]).toEqual([9, 12, 9]);
-    expect([levelCols(10), levelRows(10), levelMaxTile(10)]).toEqual([9, 12, 9]);
-    expect([levelCols(50), levelRows(50), levelMaxTile(50)]).toEqual([9, 12, 9]);
+  it('плато с 9-го уровня: 7×7, номиналы до 9', () => {
+    expect([levelCols(9), levelRows(9), levelMaxTile(9)]).toEqual([7, 7, 9]);
+    expect([levelCols(10), levelRows(10), levelMaxTile(10)]).toEqual([7, 7, 9]);
+    expect([levelCols(50), levelRows(50), levelMaxTile(50)]).toEqual([7, 7, 9]);
   });
 });
 
