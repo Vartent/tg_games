@@ -1,0 +1,228 @@
+/* Темы: молочная светлая и серо-графитовая тёмная. Активируется data-theme на <html>. */
+:root,
+:root[data-theme='dark'] {
+  --bg: #1b1b1f;
+  --surface: #26262c;
+  --surface2: #313138;
+  --text: #f2f1ee;
+  --muted: #8e8d96;
+  --accent: #ffb03a;
+  --accent-text: #2b1d00;
+  --good: #58d27d;
+  --good-text: #00351a;
+  --bad: #f0617d;
+  --sel: #ffb03a;
+  --t1: #6cc4ff; --t2: #6fdc8e; --t3: #ffd95c; --t4: #ffab57; --t5: #ff8d6b;
+  --t6: #f0708d; --t7: #f08ad2; --t8: #b39bf2; --t9: #8d9bf0;
+}
+
+:root[data-theme='light'] {
+  --bg: #f3f0e9;
+  --surface: #fffdf8;
+  --surface2: #e9e5db;
+  --text: #2c2b33;
+  --muted: #8b8779;
+  --accent: #f59e1b;
+  --accent-text: #2b1d00;
+  --good: #2faf5e;
+  --good-text: #ffffff;
+  --bad: #e0476a;
+  --sel: #f59e1b;
+  --t1: #1d8fd6; --t2: #259d52; --t3: #c79410; --t4: #e07c1f; --t5: #db5f3a;
+  --t6: #d23b62; --t7: #c44ba8; --t8: #7d56cf; --t9: #4f63d2;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  height: 100%;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, 'SF Pro Rounded', 'Segoe UI', Roboto, sans-serif;
+  display: flex;
+  justify-content: center;
+}
+
+#app { width: min(100vw, 480px); height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+
+#confetti {
+  position: fixed; inset: 0; width: 100vw; height: 100dvh;
+  pointer-events: none; z-index: 50;
+}
+
+/* ===== Игровой экран ===== */
+.game {
+  display: flex; flex-direction: column; flex: 1;
+  min-height: 0;
+  padding: calc(10px + var(--safe-top, 0px)) 10px calc(12px + var(--safe-bottom, 0px) + env(safe-area-inset-bottom));
+  gap: 8px;
+}
+
+.hud { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px; }
+.hud .stage { display: flex; flex-direction: column; min-width: 86px; }
+.hud .stage .lvl { font-size: 13px; color: var(--muted); font-weight: 700; }
+.hud .stage .score { font-size: 24px; font-weight: 800; }
+.hud .score .goal { color: var(--muted); font-weight: 700; }
+.fire {
+  font-size: 16px; font-weight: 800;
+  background: var(--surface); color: var(--muted);
+  border-radius: 14px;
+  padding: 9px 14px;
+  opacity: 0.45;
+  transition: opacity 0.15s, background 0.15s, transform 0.15s;
+}
+.fire.lit {
+  opacity: 1;
+  background: var(--accent);
+  color: var(--accent-text);
+  transform: scale(1.06);
+  animation: firepulse 0.9s ease-in-out infinite alternate;
+}
+@keyframes firepulse {
+  from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+  to { box-shadow: 0 0 16px 3px color-mix(in srgb, var(--accent) 55%, transparent); }
+}
+.hud .score .unit { font-size: 13px; color: var(--muted); font-weight: 700; }
+.hud .side { display: flex; flex-direction: column; align-items: flex-end; min-width: 70px; gap: 1px; }
+.hud .timer-num { font-size: 18px; font-weight: 800; color: var(--muted); }
+.hud .timer-num.low { color: var(--bad); }
+.hud .gems { font-size: 13px; font-weight: 700; color: var(--muted); }
+
+/* плавающий счётчик суммы у пальца */
+.drag-tip {
+  position: fixed;
+  transform: translate(-50%, -50%);
+  z-index: 30;
+  pointer-events: none;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 20px; font-weight: 800;
+  padding: 8px 16px;
+  border-radius: 14px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.3);
+}
+.drag-tip.is-target { background: var(--good); color: var(--good-text); }
+.drag-tip.is-over { background: var(--bad); color: #fff; }
+.drag-tip.shake { animation: tipshake 0.5s ease-in-out; }
+@keyframes tipshake {
+  0%, 100% { transform: translate(-50%, -50%); }
+  15% { transform: translate(calc(-50% - 7px), -50%) rotate(-3deg); }
+  30% { transform: translate(calc(-50% + 7px), -50%) rotate(3deg); }
+  45% { transform: translate(calc(-50% - 5px), -50%) rotate(-2deg); }
+  60% { transform: translate(calc(-50% + 5px), -50%) rotate(2deg); }
+  75% { transform: translate(calc(-50% - 2px), -50%); }
+}
+
+.timerbar { height: 6px; background: var(--surface); border-radius: 3px; overflow: hidden; }
+.timerbar div { height: 100%; background: var(--good); border-radius: 3px; transition: width 0.2s linear; }
+.timerbar div.low { background: var(--bad); }
+
+.board {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  gap: 4px;
+  touch-action: none;
+  align-content: center;
+  overflow: hidden;
+}
+.tile {
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: clamp(14px, 4.6vw, 24px);
+  font-weight: 800;
+  aspect-ratio: 1;
+  background: var(--surface);
+  position: relative;
+  will-change: transform;
+}
+.tile.sel {
+  outline: 3px solid var(--sel);
+  outline-offset: -2px;
+  transform: scale(0.93);
+  transition: transform 0.08s;
+  z-index: 1;
+}
+.tile.pop { animation: pop 0.16s ease-out forwards; }
+@keyframes pop {
+  0% { transform: scale(1); opacity: 1; }
+  55% { transform: scale(1.3); opacity: 1; }
+  100% { transform: scale(0); opacity: 0; }
+}
+.tile.fall { transition: transform 0.26s cubic-bezier(0.3, 0, 0.45, 1.25); }
+
+.d1 { color: var(--t1); } .d2 { color: var(--t2); } .d3 { color: var(--t3); }
+.d4 { color: var(--t4); } .d5 { color: var(--t5); } .d6 { color: var(--t6); }
+.d7 { color: var(--t7); } .d8 { color: var(--t8); } .d9 { color: var(--t9); }
+
+/* зеро: зелёная клетка, цепь с ней — ×2 и огонёк */
+.tile.d0 {
+  background: #2fbf63;
+  color: #fff;
+  box-shadow: 0 0 10px rgba(47, 191, 99, 0.5);
+  animation: zero-glow 1.6s ease-in-out infinite;
+}
+@keyframes zero-glow {
+  0%, 100% { box-shadow: 0 0 6px rgba(47, 191, 99, 0.35); }
+  50% { box-shadow: 0 0 14px rgba(47, 191, 99, 0.75); }
+}
+
+.game-footer { display: flex; gap: 8px; }
+.game-footer button { flex: 1; }
+
+button.primary {
+  appearance: none; border: none;
+  background: var(--accent); color: var(--accent-text);
+  font-size: 16px; font-weight: 800;
+  padding: 13px; border-radius: 13px;
+  cursor: pointer;
+  transition: transform 0.06s;
+}
+button.primary:active { transform: scale(0.97); }
+button.primary:disabled { background: var(--surface2); color: var(--muted); }
+button.ghost {
+  appearance: none; border: none;
+  background: var(--surface2); color: var(--text);
+  font-size: 15px; font-weight: 700;
+  padding: 13px; border-radius: 13px;
+  cursor: pointer;
+}
+
+/* ===== Оверлей результата ===== */
+.overlay {
+  position: fixed; inset: 0; z-index: 40;
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  backdrop-filter: blur(3px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.overlay .panel {
+  background: var(--surface);
+  border-radius: 24px;
+  padding: 28px 24px;
+  width: 100%; max-width: 360px;
+  display: flex; flex-direction: column; gap: 13px;
+  text-align: center;
+  animation: rise 0.25s ease-out;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.25);
+}
+@keyframes rise { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.panel h2 { font-size: 22px; }
+.panel .big-score { font-size: 52px; font-weight: 900; color: var(--accent); }
+.panel .label { color: var(--muted); font-size: 15px; }
+.panel .record { color: var(--good); font-weight: 800; }
+
+/* невалидный свап: плитки дёргаются */
+.tile.nudge { animation: nudge 0.3s ease; }
+@keyframes nudge {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
